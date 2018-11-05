@@ -1,22 +1,129 @@
 <!doctype html>
-<title>MediaStreamTrack GetCapabilities</title>
-<p class="instructions">This test checks for the presence of audio and video properties in
-<code>MediaStreamTrack.getCapabilities()</code> method.</p>
+<title>MediaStreamTrack and InputDeviceInfo GetCapabilities</title>
 <script src=/resources/testharness.js></script>
 <script src=/resources/testharnessreport.js></script>
 <script>
-  promise_test(() => {
-  return navigator.mediaDevices.getUserMedia({audio: true, video: true})
-    .then(stream => {
-      var audioCapabilities = stream.getAudioTracks()[0].getCapabilities();
-      var videoCapabilities = stream.getVideoTracks()[0].getCapabilities();
-      assert_true(undefined !== audioCapabilities.deviceId, "MediaTrackCapabilities's deviceId should exist for an audio track.");
-      assert_true(undefined !== audioCapabilities.groupId, "MediaTrackCapabilities's groupId should exist for an audio track.");
-      assert_true(undefined !== audioCapabilities.echoCancellation, "MediaTrackCapabilities's echoCancellation should exist for an audio track.");
-      assert_true(undefined !== audioCapabilities.autoGainControl, "MediaTrackCapabilities's autoGainControl should exist for an audio track.");
-      assert_true(undefined !== audioCapabilities.noiseSuppression, "MediaTrackCapabilities's noiseSuppression should exist for an audio track.");
-      assert_true(undefined !== videoCapabilities.deviceId, "MediaTrackCapabilities's deviceId should exist for a video track.");
-      assert_true(undefined !== videoCapabilities.groupId, "MediaTrackCapabilities's groupId should exist for a video track.");
-    });
+
+const audioProperties = [
+  ["volume", "number"],
+  ["sampleRate", "number"],
+  ["sampleSize", "number"],
+  ["echoCancellation", "boolean"],
+  ["autoGainControl", "boolean"],
+  ["noiseSuppression", "boolean"],
+  ["latency", "number"],
+  ["channelCount", "number"],
+  ["deviceId", "string"],
+  ["groupId", "string"]
+];
+
+const videoProperties = [
+  ["width", "number"],
+  ["height", "number"],
+  ["aspectRatio", "number"],
+  ["frameRate", "number"],
+  ["facingMode", "enum", ["user", "environment", "left", "right"]],
+  ["resizeMode", "enum", ["none", "crop-and-scale"]],
+  ["deviceId", "string"],
+  ["groupId", "string"]
+];
+
+function verifyBooleanCapability(capability) {
+  assert_less_than_equal(capability.length, 2);
+  capability.forEach(c => assert_equals(typeof c, "boolean"));
+}
+
+function verifyNumberCapability(capability) {
+    assert_equals(typeof capability, "object");
+    assert_equals(Object.keys(capability).length, 2);
+    assert_true(capability.hasOwnProperty('min'));
+    assert_true(capability.hasOwnProperty('max'));
+    assert_less_than_equal(capability.min, capability.max);
+}
+
+function verifyEnumCapability(capability, enumMembers) {
+  capability.forEach(c => {
+    assert_equals(typeof c, "string");
+    assert_in_array(c, enumMembers);
   });
+}
+
+function testCapabilities(capabilities, property, testNamePrefix) {
+  const propertyName = property[0];
+  const propertyType = property[1];
+  let testName = testNamePrefix + " " + propertyName;
+  test(() => {
+    assert_true(capabilities.hasOwnProperty(propertyName));
+  }, testName + " property present.");
+
+  const capability = capabilities[propertyName];
+  testName += " properly supported.";
+  if (propertyType == "string") {
+    test(() => {
+      assert_equals(typeof capability, "string");
+    }, testName);
+  }
+
+  if (propertyType == "boolean") {
+    test(() => {
+      verifyBooleanCapability(capability);
+    }, testName);
+  }
+
+  if (propertyType == "number") {
+    test(() => {
+      verifyNumberCapability(capability);
+    }, testName);
+  }
+
+  if (propertyType == "enum") {
+    const valid_values = property[2];
+    test(() => {
+      verifyEnumCapability(capability, valid_values);
+    }, testName);
+  }
+}
+
+promise_test(async t => {
+  const stream = await navigator.mediaDevices.getUserMedia({audio: true, video: true});
+  t.add_cleanup(() => stream.getTracks().forEach(track => track.stop()));
+  const audioCapabilities = stream.getAudioTracks()[0].getCapabilities();
+  const videoCapabilities = stream.getVideoTracks()[0].getCapabilities();
+
+  audioProperties.forEach(property => {
+    testCapabilities(audioCapabilities, property, "Audio track getCapabilities()");
+  });
+
+  videoProperties.forEach(property => {
+    testCapabilities(videoCapabilities, property, "Video track getCapabilities()");
+  });
+}, 'MediaStreamTrack getCapabilities().');
+
+function testDevice(device, properties, testNamePrefix) {
+  test(()=>{
+    assert_inherits(device, "getCapabilities");
+    const capabilities = device.getCapabilities();
+    properties.forEach(property => {
+      testCapabilities(capabilities, property, testNamePrefix);
+    });
+  }, testNamePrefix + " method present.");
+}
+
+promise_test(async t => {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  for (const device of devices) {
+    // Test only one device.
+    if (device.kind == "audioinput") {
+      testDevice(device, audioProperties, "Audio device getCapabilities()");
+      break;
+    }
+  }
+  for (const device of devices) {
+    // Test only one device.
+    if (device.kind == "videoinput") {
+      testDevice(device, videoProperties, "Video device getCapabilities()");
+      break;
+    }
+  }
+}, 'InputDeviceInfo getCapabilities().');
 </script>
