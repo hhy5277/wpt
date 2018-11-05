@@ -312,3 +312,26 @@ async function deleteAllDatabases(testCase) {
     await eventWatcher.wait_for('success');
   }
 }
+
+// Keep the passed transaction alive indefinitely (by making requests
+// against the named store). Returns a function to to let the
+// transaction finish, and asserts that the transaction is not yet
+// finished.
+function keep_alive(tx, store_name) {
+  let completed = false;
+  tx.addEventListener('complete', () => { completed = true; });
+
+  let pin = true;
+
+  function spin() {
+    if (!pin)
+      return;
+    tx.objectStore(store_name).get(0).onsuccess = spin;
+  }
+  spin();
+
+  return () => {
+    assert_false(completed, 'Transaction completed while kept alive');
+    pin = false;
+  };
+}
