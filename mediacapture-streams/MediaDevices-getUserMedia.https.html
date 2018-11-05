@@ -92,6 +92,25 @@ promise_test(t => {
       }
     }));
 }, 'groupId is correctly supported by getUserMedia() for audio devices');
+
+promise_test(async t => {
+  const stream = await navigator.mediaDevices.getUserMedia(
+      { video: {resizeMode: {exact: 'none'}}});
+  const [track] = stream.getVideoTracks();
+  t.add_cleanup(() => track.stop());
+  assert_equals(track.getSettings().resizeMode, 'none');
+}, 'getUserMedia() supports resizeMode.');
+
+promise_test(async t => {
+  try {
+    await navigator.mediaDevices.getUserMedia(
+        { video: {resizeMode: {exact: 'INVALID'}}});
+    t.unreached_func('getUserMedia() should fail with invalid resizeMode')();
+  } catch (e) {
+    assert_equals(e.name, 'OverconstrainedError');
+    assert_equals(e.constraint, 'resizeMode');
+  }
+}, 'getUserMedia() fails with exact invalid resizeMode.');
 </script>
 </body>
 </html>
