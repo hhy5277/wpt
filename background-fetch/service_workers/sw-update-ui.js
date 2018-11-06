@@ -1,3 +1,4 @@
+importScripts('/resources/testharness.js')
 importScripts('sw-helpers.js');
 
 async function updateUI(event) {
@@ -17,6 +18,14 @@ async function updateUI(event) {
 }
 
 self.addEventListener('backgroundfetchsuccess', event => {
+  if (event.registration.id === 'update-inactive') {
+    // Wait 1ms before calling updateUI from the inactive event.
+    new Promise(r => step_timeout(r, 1))
+        .then(() => event.updateUI({title: 'New title'}))
+        .catch(e => sendMessageToDocument({ type: event.type, update: e.message }));
+    return;
+  }
+
   event.waitUntil(updateUI(event)
-      .then(update => sendMessageToDocument({ type: event.type, update })))
+      .then(update => sendMessageToDocument({ type: event.type, update })));
 });
